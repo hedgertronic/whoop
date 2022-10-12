@@ -1,0 +1,7 @@
+[flake8]
+docstring-convention = google
+exclude = test*.py,dev
+extend-select = TC
+ignore = E203,W503,D212,TC003,E800
+max-complexity = 10
+max-line-length = 88
