@@ -48,7 +48,7 @@ from authlib.common.urls import extract_params
 from authlib.integrations.requests_client import OAuth2Session
 
 
-AUTH_URL = "https://api-7.whoop.com"
+AUTH_URL = "https://api.prod.whoop.com"
 REQUEST_URL = "https://api.prod.whoop.com/developer"
 
 
@@ -99,7 +99,7 @@ class WhoopClient:
         self._password = password
 
         self.session = OAuth2Session(
-            token_endpont=f"{AUTH_URL}/oauth/token",
+            token_endpont=f"{AUTH_URL}/auth-service/v2/whoop/sign-in",
             token_endpoint_auth_method=self.TOKEN_ENDPOINT_AUTH_METHOD,
         )
 
@@ -475,10 +475,9 @@ class WhoopClient:
             kwargs (dict[str, Any], optional): Additional arguments for `fetch_token()`.
         """
         self.session.fetch_token(
-            url=f"{AUTH_URL}/oauth/token",
+            url=f"{AUTH_URL}/auth-service/v2/whoop/sign-in",
             username=self._username,
             password=self._password,
-            grant_type="password",
             **kwargs,
         )
 
