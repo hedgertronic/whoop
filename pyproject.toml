@@ -5,7 +5,7 @@ homepage = "https://github.com/hedgertronic/whoop"
 name = "whoop"
 readme = "README.md"
 repository = "https://github.com/hedgertronic/whoop"
-version = "0.1.0"
+version = "0.1.1"
 
 [tool.poetry.dependencies]
 Authlib = "^1.0.1"
