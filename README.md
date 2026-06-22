@@ -10,6 +10,7 @@ WHOOP API documentation can be found at https://developer.whoop.com/api.
 
 - [Installation](#installation)
 - [Getting Started](#getting-started)
+- [Migration From Pre-1.0](#migration-from-pre-10)
 - [API Requests](#api-requests)
   - [Get Profile](#get-profile)
   - [Get Body Measurement](#get-body-measurement)
@@ -135,6 +136,15 @@ The default scopes are:
 
 Note WHOOP's mixed pluralization: `read:cycles` is plural while `read:workout` is singular.
 
+## Migration From Pre-1.0
+
+Version 1.0 removes the legacy username/password flow and uses WHOOP's official OAuth2 authorization-code flow instead.
+
+- Replace `WhoopClient(username, password)` with `WhoopClient(client_id, client_secret, redirect_uri)`.
+- Replace eager constructor authentication and `authenticate()` calls with `authorization_url()` plus `fetch_token(...)`.
+- Persist `client.token` after authorization and pass it back with `WhoopClient(client_id, client_secret, token=saved_token)` for headless use.
+- Request the default `offline` scope, or include it in custom scopes, if you need refresh-token based auto-refresh.
+
 ## API Requests
 
 There are ten different API requests that `WhoopClient` can make. Full WHOOP API documentation can be found on [WHOOP's website](https://developer.whoop.com/api).
@@ -215,8 +225,8 @@ Get all physiological cycles for a user. Results are sorted by start time in des
 
 **Payload**:
 
-- `start`: The earliest date for which to get data, derived from the `start_date` parameter. Returns cycles that occurred after or during (inclusive) this time. Expected as a `YYYY-MM-DD` date string. Defaults to six days before today (a trailing seven-day window).
-- `end`: The latest date for which to get data, derived from the `end_date` parameter. Returns cycles that intersect this time or ended before (exclusive) this time. Expected as a `YYYY-MM-DD` date string. Defaults to today's date.
+- `start`: The earliest time for which to get data, derived from the `start_date` parameter. Returns cycles that occurred after or during (inclusive) this time. Accepts `YYYY-MM-DD` date strings or ISO datetimes. Date-only values cover whole UTC days. Defaults to six days before today (a trailing seven-day window).
+- `end`: The latest time for which to get data, derived from the `end_date` parameter. Returns cycles that intersect this time or ended before (exclusive) this time. Accepts `YYYY-MM-DD` date strings or ISO datetimes. Date-only values cover whole UTC days. Defaults to today's date.
 
 **Example Response**:
 
@@ -281,8 +291,8 @@ Get all recoveries for a user. Results are sorted by start time of the related s
 
 **Payload**:
 
-- `start`: The earliest date for which to get data, derived from the `start_date` parameter. Returns cycles that occurred after or during (inclusive) this time. Expected as a `YYYY-MM-DD` date string. Defaults to six days before today (a trailing seven-day window).
-- `end`: The latest date for which to get data, derived from the `end_date` parameter. Returns cycles that intersect this time or ended before (exclusive) this time. Expected as a `YYYY-MM-DD` date string. Defaults to today's date.
+- `start`: The earliest time for which to get data, derived from the `start_date` parameter. Returns recoveries that occurred after or during (inclusive) this time. Accepts `YYYY-MM-DD` date strings or ISO datetimes. Date-only values cover whole UTC days. Defaults to six days before today (a trailing seven-day window).
+- `end`: The latest time for which to get data, derived from the `end_date` parameter. Returns recoveries that intersect this time or ended before (exclusive) this time. Accepts `YYYY-MM-DD` date strings or ISO datetimes. Date-only values cover whole UTC days. Defaults to today's date.
 
 **Example Response**:
 
@@ -350,8 +360,8 @@ Get all sleeps for a user. Results are sorted by start time in descending order.
 
 **Payload**:
 
-- `start`: The earliest date for which to get data, derived from the `start_date` parameter. Returns sleeps that occurred after or during (inclusive) this time. Expected as a `YYYY-MM-DD` date string. Defaults to six days before today (a trailing seven-day window).
-- `end`: The latest date for which to get data, derived from the `end_date` parameter. Returns sleeps that intersect this time or ended before (exclusive) this time. Expected as a `YYYY-MM-DD` date string. Defaults to today's date.
+- `start`: The earliest time for which to get data, derived from the `start_date` parameter. Returns sleeps that occurred after or during (inclusive) this time. Accepts `YYYY-MM-DD` date strings or ISO datetimes. Date-only values cover whole UTC days. Defaults to six days before today (a trailing seven-day window).
+- `end`: The latest time for which to get data, derived from the `end_date` parameter. Returns sleeps that intersect this time or ended before (exclusive) this time. Accepts `YYYY-MM-DD` date strings or ISO datetimes. Date-only values cover whole UTC days. Defaults to today's date.
 
 **Example Response**:
 
@@ -425,8 +435,8 @@ Get all workouts for a user. Results are sorted by start time in descending orde
 
 **Payload**:
 
-- `start`: The earliest date for which to get data, derived from the `start_date` parameter. Returns workouts that occurred after or during (inclusive) this time. Expected as a `YYYY-MM-DD` date string. Defaults to six days before today (a trailing seven-day window).
-- `end`: The latest date for which to get data, derived from the `end_date` parameter. Returns workouts that intersect this time or ended before (exclusive) this time. Expected as a `YYYY-MM-DD` date string. Defaults to today's date.
+- `start`: The earliest time for which to get data, derived from the `start_date` parameter. Returns workouts that occurred after or during (inclusive) this time. Accepts `YYYY-MM-DD` date strings or ISO datetimes. Date-only values cover whole UTC days. Defaults to six days before today (a trailing seven-day window).
+- `end`: The latest time for which to get data, derived from the `end_date` parameter. Returns workouts that intersect this time or ended before (exclusive) this time. Accepts `YYYY-MM-DD` date strings or ISO datetimes. Date-only values cover whole UTC days. Defaults to today's date.
 
 **Example Response**:
 
