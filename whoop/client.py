@@ -1,116 +1,34 @@
-"""Tools for acquiring and analyzing Whoop API data.
+"""WHOOP API client and read-only data endpoints.
 
-WHOOP is a wearable strap for monitoring sleep, activity, and workouts. Learn more about
-WHOOP at https://www.whoop.com.
-
-WHOOP API documentation can be found at https://developer.whoop.com/api.
-
-Examples:
-    Loading environment variables:
-        import os
-        from dotenv import load_dotenv
-
-        load_dotenv()
-
-        username = os.getenv("USERNAME") or ""
-        password = os.getenv("PASSWORD") or ""
-
-    Creating a client:
-        import whoop as wh
-
-        client = wh.WhoopClient(username, password)
-        ...
-
-        with wh.WhoopClient(username, password) as client:
-            ...
-
-    Making requests:
-        client = wh.WhoopClient(username, password)
-
-        sleep = client.get_sleep_collection()
-        recovery = client.get_recovery_collectuon()
-
-        print(sleep)
-        print(recovery)
+`WhoopClient` extends `WhoopAuth` with the WHOOP data endpoints (profile, body
+measurement, cycles, recovery, sleep, workouts). See the top-level `whoop`
+package docstring for usage examples.
 
 Attributes:
-    AUTH_URL (str): Base URL for authorization requests.
-    REQUEST_URL (str): Base URL for API requests.
+    REQUEST_URL (str): Base URL for v2 data requests.
 """
 
 from __future__ import annotations
 
-import json
-from datetime import datetime, time, timedelta
+from datetime import datetime, time, timedelta, timezone
 from typing import Any
 
-from authlib.common.urls import extract_params
-from authlib.integrations.requests_client import OAuth2Session
+from whoop.auth import WhoopAuth
 
-
-AUTH_URL = "https://api-7.whoop.com"
 REQUEST_URL = "https://api.prod.whoop.com/developer"
 
 
-def _auth_password_json(_client, _method, uri, headers, body):
-    body = json.dumps(dict(extract_params(body)))
-    headers["Content-Type"] = "application/json"
+class WhoopClient(WhoopAuth):
+    """Make read-only requests to the WHOOP v2 data API.
 
-    return uri, headers, body
-
-
-class WhoopClient:
-    """Make requests to the WHOOP API.
-
-    Attributes:
-        session (authlib.OAuth2Session): Requests session for accessing the WHOOP API.
-        user_id (str): User ID of the owner of the session. Will default to an empty
-            string before the session is authenticated and then replaced by the correct
-            user ID once a token is fetched.
+    Extends `WhoopAuth` with the WHOOP data endpoints. Construct and authenticate
+    via `WhoopAuth` (see that class and the package docstring), then call the
+    `get_*` methods. Collection endpoints accept ISO date strings and default to a
+    trailing seven-day window.
 
     Raises:
         ValueError: If `start_date` is after `end_date`.
     """
-
-    TOKEN_ENDPOINT_AUTH_METHOD = "password_json"  # noqa
-
-    ####################################################################################
-    # INIT STUFF
-
-    def __init__(
-        self,
-        username: str,
-        password: str,
-        authenticate: bool = True,
-    ):
-        """Initialize an OAuth2 session for making API requests.
-
-        Optionally makes a request to the WHOOP API to acquire an access token.
-
-        Args:
-            username (str): WHOOP account email.
-            password (str): WHOOP account password.
-            authenticate (bool): Whether to fetch a token from the API upon
-                session creation. If false, `authenticate()` must be called manually.
-                Defaults to true.
-            kwargs (dict[str, Any], optional): Additional arguments for OAuth2Session.
-        """
-        self._username = username
-        self._password = password
-
-        self.session = OAuth2Session(
-            token_endpont=f"{AUTH_URL}/oauth/token",
-            token_endpoint_auth_method=self.TOKEN_ENDPOINT_AUTH_METHOD,
-        )
-
-        self.session.register_client_auth_method(
-            (self.TOKEN_ENDPOINT_AUTH_METHOD, _auth_password_json)
-        )
-
-        self.user_id = ""
-
-        if authenticate:
-            self.authenticate()
 
     def __enter__(self) -> WhoopClient:
         """Enter a context manager.
@@ -120,26 +38,13 @@ class WhoopClient:
         """
         return self
 
-    def __exit__(self, *_) -> None:
+    def __exit__(self, *_: object) -> None:
         """Exit a context manager by closing the OAuth2 session.
 
         Args:
             _ (Any): Exception arguments passed when closing context manager.
         """
         self.close()
-
-    def __str__(self) -> str:
-        """Generate string representation of client.
-
-        Returns:
-            str: String representation of client featuring user ID of the owner of the
-                session.
-        """
-        return f"WhoopClient({self.user_id if self.user_id else '<Unauthenticated>'})"
-
-    def close(self) -> None:
-        """Close the OAuth2 Session."""
-        self.session.close()
 
     ####################################################################################
     # API ENDPOINTS
@@ -158,7 +63,7 @@ class WhoopClient:
                     "last_name": "Smith"
                 }
         """
-        return self._make_request(method="GET", url_slug="v1/user/profile/basic")
+        return self._make_request(method="GET", url_slug="v2/user/profile/basic")
 
     def get_body_measurement(self) -> dict[str, Any]:
         """Make request to Get Body Measurement endpoint.
@@ -173,9 +78,9 @@ class WhoopClient:
                     "max_heart_rate": 200
                 }
         """
-        return self._make_request(method="GET", url_slug="v1/user/measurement/body")
+        return self._make_request(method="GET", url_slug="v2/user/measurement/body")
 
-    def get_cycle_by_id(self, cycle_id: str) -> dict[str, Any]:
+    def get_cycle_by_id(self, cycle_id: int) -> dict[str, Any]:
         """Make request to Get Cycle By ID endpoint.
 
         Get the cycle for the specified ID.
@@ -199,7 +104,7 @@ class WhoopClient:
                     }
                 }
         """
-        return self._make_request(method="GET", url_slug=f"v1/cycle/{cycle_id}")
+        return self._make_request(method="GET", url_slug=f"v2/cycle/{cycle_id}")
 
     def get_cycle_collection(
         self,
@@ -237,11 +142,11 @@ class WhoopClient:
 
         return self._make_paginated_request(
             method="GET",
-            url_slug="v1/cycle",
+            url_slug="v2/cycle",
             params={"start": start, "end": end, "limit": 25},
         )
 
-    def get_recovery_for_cycle(self, cycle_id: str) -> dict[str, Any]:
+    def get_recovery_for_cycle(self, cycle_id: int) -> dict[str, Any]:
         """Make request to Get Recovery For Cycle endpoint.
 
         Get the recovery for a cycle.
@@ -250,7 +155,7 @@ class WhoopClient:
             dict[str, Any]: Response JSON data loaded into an object. Example:
                 {
                     "cycle_id": 93845,
-                    "sleep_id": 10235,
+                    "sleep_id": "ee9e6759-2cd8-4317-bc44-0a0bc59a6f1f",
                     "user_id": 10129,
                     "created_at": "2022-04-24T11:25:44.774Z",
                     "updated_at": "2022-04-24T14:25:44.774Z",
@@ -266,7 +171,7 @@ class WhoopClient:
                 }
         """
         return self._make_request(
-            method="GET", url_slug=f"v1/cycle/{cycle_id}/recovery"
+            method="GET", url_slug=f"v2/cycle/{cycle_id}/recovery"
         )
 
     def get_recovery_collection(
@@ -284,7 +189,7 @@ class WhoopClient:
                 [
                     {
                         "cycle_id": 93845,
-                        "sleep_id": 10235,
+                        "sleep_id": "ee9e6759-2cd8-4317-bc44-0a0bc59a6f1f",
                         "user_id": 10129,
                         "created_at": "2022-04-24T11:25:44.774Z",
                         "updated_at": "2022-04-24T14:25:44.774Z",
@@ -305,7 +210,7 @@ class WhoopClient:
 
         return self._make_paginated_request(
             method="GET",
-            url_slug="v1/recovery",
+            url_slug="v2/recovery",
             params={"start": start, "end": end, "limit": 25},
         )
 
@@ -317,7 +222,7 @@ class WhoopClient:
         Returns:
             dict[str, Any]: Response JSON data loaded into an object. Example:
                 {
-                    "id": 93845,
+                    "id": "5c060dd1-975d-4544-880c-3def81bdfb0d",
                     "user_id": 10129,
                     "created_at": "2022-04-24T11:25:44.774Z",
                     "updated_at": "2022-04-24T14:25:44.774Z",
@@ -337,7 +242,7 @@ class WhoopClient:
                 }
         """
         return self._make_request(
-            method="GET", url_slug=f"v1/activity/sleep/{sleep_id}"
+            method="GET", url_slug=f"v2/activity/sleep/{sleep_id}"
         )
 
     def get_sleep_collection(
@@ -353,7 +258,7 @@ class WhoopClient:
             list[dict[str, Any]]: Response JSON data loaded into an object. Example:
                 [
                     {
-                        "id": 93845,
+                        "id": "5c060dd1-975d-4544-880c-3def81bdfb0d",
                         "user_id": 10129,
                         "created_at": "2022-04-24T11:25:44.774Z",
                         "updated_at": "2022-04-24T14:25:44.774Z",
@@ -378,7 +283,7 @@ class WhoopClient:
 
         return self._make_paginated_request(
             method="GET",
-            url_slug="v1/activity/sleep",
+            url_slug="v2/activity/sleep",
             params={"start": start, "end": end, "limit": 25},
         )
 
@@ -390,7 +295,7 @@ class WhoopClient:
         Returns:
             dict[str, Any]: Response JSON data loaded into an object. Example:
                 {
-                    "id": 1043,
+                    "id": "ecfc6a15-4661-442f-a9a4-f160dd7afae8",
                     "user_id": 9012,
                     "created_at": "2022-04-24T11:25:44.774Z",
                     "updated_at": "2022-04-24T14:25:44.774Z",
@@ -413,7 +318,7 @@ class WhoopClient:
                 }
         """
         return self._make_request(
-            method="GET", url_slug=f"v1/activity/workout/{workout_id}"
+            method="GET", url_slug=f"v2/activity/workout/{workout_id}"
         )
 
     def get_workout_collection(
@@ -430,7 +335,7 @@ class WhoopClient:
             list[dict[str, Any]]: Response JSON data loaded into an object. Example:
                 [
                     {
-                        "id": 1043,
+                        "id": "ecfc6a15-4661-442f-a9a4-f160dd7afae8",
                         "user_id": 9012,
                         "created_at": "2022-04-24T11:25:44.774Z",
                         "updated_at": "2022-04-24T14:25:44.774Z",
@@ -458,43 +363,15 @@ class WhoopClient:
 
         return self._make_paginated_request(
             method="GET",
-            url_slug="v1/activity/workout",
+            url_slug="v2/activity/workout",
             params={"start": start, "end": end, "limit": 25},
         )
 
     ####################################################################################
     # API HELPER METHODS
 
-    def authenticate(self, **kwargs) -> None:
-        """Authenticate OAuth2Session by fetching token.
-
-        If `user_id` is `None`, it will be set according to the `user_id` returned with
-        the token.
-
-        Args:
-            kwargs (dict[str, Any], optional): Additional arguments for `fetch_token()`.
-        """
-        self.session.fetch_token(
-            url=f"{AUTH_URL}/oauth/token",
-            username=self._username,
-            password=self._password,
-            grant_type="password",
-            **kwargs,
-        )
-
-        if not self.user_id:
-            self.user_id = str(self.session.token.get("user", {}).get("id", ""))
-
-    def is_authenticated(self) -> bool:
-        """Check if the OAuth2Session is authenticated.
-
-        Returns:
-            bool: Whether the OAuth2Session has a token and is therefore authenticated.
-        """
-        return self.session.token is not None
-
     def _make_paginated_request(
-        self, method, url_slug, **kwargs
+        self, method: str, url_slug: str, **kwargs: Any
     ) -> list[dict[str, Any]]:
         params = kwargs.pop("params", {})
         response_data: list[dict[str, Any]] = []
@@ -528,27 +405,30 @@ class WhoopClient:
 
         response.raise_for_status()
 
-        return response.json()
+        data: dict[str, Any] = response.json()
+        return data
 
     def _format_dates(
         self, start_date: str | None, end_date: str | None
     ) -> tuple[str, str]:
-        end = datetime.combine(
-            datetime.fromisoformat(end_date) if end_date else datetime.today(), time.max
-        )
-        start = datetime.combine(
-            datetime.fromisoformat(start_date)
+        # Inputs are interpreted as UTC calendar days; any time-of-day is ignored.
+        today = datetime.now(timezone.utc).date()
+        start_day = (
+            datetime.fromisoformat(start_date).date()
             if start_date
-            else datetime.today() - timedelta(days=6),
-            time.min,
+            else today - timedelta(days=6)
         )
+        end_day = datetime.fromisoformat(end_date).date() if end_date else today
 
-        if start > end:
+        if start_day > end_day:
             raise ValueError(
-                f"Start datetime greater than end datetime: {start} > {end}"
+                f"Start date greater than end date: {start_day} > {end_day}"
             )
 
-        return (
-            start.isoformat() + "Z",
-            end.isoformat(timespec="seconds") + "Z",
-        )
+        # WHOOP's `start` is inclusive and `end` is exclusive, so the window is the
+        # half-open interval [start 00:00Z, (end + 1 day) 00:00Z): whole UTC days
+        # with no gap or overlap between consecutive queries.
+        start = datetime.combine(start_day, time.min)
+        end = datetime.combine(end_day + timedelta(days=1), time.min)
+
+        return start.isoformat() + "Z", end.isoformat() + "Z"
