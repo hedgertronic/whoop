@@ -8,6 +8,7 @@ endpoints live on `WhoopClient`, which extends this class.
 Attributes:
     AUTHORIZE_URL (str): OAuth2 authorization endpoint (user consent).
     TOKEN_URL (str): OAuth2 token endpoint (code exchange and refresh).
+    REVOKE_URL (str): OAuth2 access revocation endpoint.
     DEFAULT_SCOPES (list[str]): Read scopes for all endpoints plus ``offline``.
 """
 
@@ -20,6 +21,7 @@ from authlib.integrations.requests_client import OAuth2Session
 
 AUTHORIZE_URL = "https://api.prod.whoop.com/oauth/oauth2/auth"
 TOKEN_URL = "https://api.prod.whoop.com/oauth/oauth2/token"  # noqa: S105 (URL, not a secret)
+REVOKE_URL = "https://api.prod.whoop.com/developer/v2/user/access"
 
 DEFAULT_SCOPES = [
     "read:profile",
@@ -100,6 +102,15 @@ class WhoopAuth:
     def close(self) -> None:
         """Close the OAuth2 Session."""
         self.session.close()
+
+    def revoke_access(self) -> None:
+        """Revoke this user's OAuth access grant.
+
+        After a successful request, the current access token can no longer access
+        WHOOP data and webhook delivery stops for the associated OAuth client.
+        """
+        response = self.session.delete(REVOKE_URL)
+        response.raise_for_status()
 
     def authorization_url(self, **kwargs: Any) -> tuple[str, str]:
         """Build the URL a user visits to authorize the app.

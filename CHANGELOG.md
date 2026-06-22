@@ -9,6 +9,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 - OAuth2 support for WHOOP's authorization-code flow via `WhoopClient`.
 - Token reuse and refresh persistence through `client.token` and `on_token_refresh`.
+- OAuth access revocation via `revoke_access()`.
+- V1-to-V2 activity ID lookup via `get_activity_mapping(...)`.
+- Cycle-to-sleep lookup via `get_sleep_for_cycle(...)`.
 - Sleep stream access via `get_sleep_stream(...)`, including `sleep_classification` requests.
 - `whoop.__version__`.
 - `py.typed` marker -- the package now ships its inline type annotations (PEP 561).

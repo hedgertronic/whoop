@@ -11,6 +11,7 @@ from urllib.parse import parse_qs, urlparse
 from whoop import (
     AUTHORIZE_URL,
     DEFAULT_SCOPES,
+    REVOKE_URL,
     TOKEN_URL,
     WhoopAuth,
     WhoopClient,
@@ -24,6 +25,7 @@ def test_exports_are_wired():
     assert WhoopAuth is not None
     assert AUTHORIZE_URL == "https://api.prod.whoop.com/oauth/oauth2/auth"
     assert TOKEN_URL == "https://api.prod.whoop.com/oauth/oauth2/token"  # noqa: S105
+    assert REVOKE_URL == "https://api.prod.whoop.com/developer/v2/user/access"
     assert "offline" in DEFAULT_SCOPES
 
 
@@ -145,6 +147,18 @@ def test_close_closes_session(unauth_client: WhoopClient):
     unauth_client.session.close = MagicMock()
     unauth_client.close()
     unauth_client.session.close.assert_called_once_with()
+
+
+def test_revoke_access_deletes_user_access(client: WhoopClient):
+    from unittest.mock import MagicMock
+
+    response = MagicMock()
+    client.session.delete = MagicMock(return_value=response)
+
+    client.revoke_access()
+
+    client.session.delete.assert_called_once_with(REVOKE_URL)
+    response.raise_for_status.assert_called_once_with()
 
 
 def test_context_manager_calls_close():

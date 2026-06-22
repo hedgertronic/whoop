@@ -49,6 +49,22 @@ class WhoopClient(WhoopAuth):
     ####################################################################################
     # API ENDPOINTS
 
+    def get_activity_mapping(self, activity_v1_id: int) -> dict[str, Any]:
+        """Make request to Get V2 UUID for V1 Activity ID endpoint.
+
+        Lookup the V2 UUID for a legacy V1 activity ID. This is useful when
+        migrating stored sleep or workout IDs from pre-v2 integrations.
+
+        Returns:
+            dict[str, Any]: Response JSON data loaded into an object. Example:
+                {
+                    "v2_activity_id": "ecfc6a15-4661-442f-a9a4-f160dd7afae8"
+                }
+        """
+        return self._make_request(
+            method="GET", url_slug=f"v1/activity-mapping/{activity_v1_id}"
+        )
+
     def get_profile(self) -> dict[str, Any]:
         """Make request to Get Profile endpoint.
 
@@ -173,6 +189,31 @@ class WhoopClient(WhoopAuth):
         return self._make_request(
             method="GET", url_slug=f"v2/cycle/{cycle_id}/recovery"
         )
+
+    def get_sleep_for_cycle(self, cycle_id: int) -> dict[str, Any]:
+        """Make request to Get Sleep For Cycle endpoint.
+
+        Get the sleep associated with the specified cycle ID.
+
+        Returns:
+            dict[str, Any]: Response JSON data loaded into an object. Example:
+                {
+                    "id": "5c060dd1-975d-4544-880c-3def81bdfb0d",
+                    "cycle_id": 93845,
+                    "user_id": 10129,
+                    "nap": False,
+                    "score_state": "SCORED",
+                    "score": {
+                        "stage_summary": {},
+                        "sleep_needed": {},
+                        "respiratory_rate": 16.11328125,
+                        "sleep_performance_percentage": 98,
+                        "sleep_consistency_percentage": 90,
+                        "sleep_efficiency_percentage": 91.69533848
+                    }
+                }
+        """
+        return self._make_request(method="GET", url_slug=f"v2/cycle/{cycle_id}/sleep")
 
     def get_recovery_collection(
         self,

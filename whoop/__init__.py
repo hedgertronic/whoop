@@ -40,7 +40,7 @@ Examples:
 
 from importlib.metadata import PackageNotFoundError, version
 
-from whoop.auth import AUTHORIZE_URL, DEFAULT_SCOPES, TOKEN_URL, WhoopAuth
+from whoop.auth import AUTHORIZE_URL, DEFAULT_SCOPES, REVOKE_URL, TOKEN_URL, WhoopAuth
 from whoop.client import REQUEST_URL, WhoopClient
 
 try:
@@ -52,6 +52,7 @@ __all__ = [
     "AUTHORIZE_URL",
     "DEFAULT_SCOPES",
     "REQUEST_URL",
+    "REVOKE_URL",
     "TOKEN_URL",
     "__version__",
     "WhoopAuth",

@@ -112,6 +112,10 @@ CYCLE = {
 SLEEP_UUID = "5c060dd1-975d-4544-880c-3def81bdfb0d"
 WORKOUT_UUID = "a1b2c3d4-0000-4444-8888-1234567890ab"
 
+ACTIVITY_MAPPING = {
+    "v2_activity_id": SLEEP_UUID,
+}
+
 RECOVERY = {
     "cycle_id": 111,
     "sleep_id": SLEEP_UUID,

@@ -42,6 +42,14 @@ def test_get_body_measurement(client: WhoopClient, patched_request):
     assert _called_url(mock) == f"{REQUEST_URL}/v2/user/measurement/body"
 
 
+def test_get_activity_mapping(client: WhoopClient, patched_request):
+    mock = patched_request(fx.ACTIVITY_MAPPING)
+    result = client.get_activity_mapping(12345678)
+
+    assert result == fx.ACTIVITY_MAPPING
+    assert _called_url(mock) == f"{REQUEST_URL}/v1/activity-mapping/12345678"
+
+
 def test_get_cycle_by_id_integer(client: WhoopClient, patched_request):
     mock = patched_request(fx.CYCLE)
     result = client.get_cycle_by_id(111)
@@ -56,6 +64,14 @@ def test_get_recovery_for_cycle(client: WhoopClient, patched_request):
 
     assert result == fx.RECOVERY
     assert _called_url(mock) == f"{REQUEST_URL}/v2/cycle/111/recovery"
+
+
+def test_get_sleep_for_cycle(client: WhoopClient, patched_request):
+    mock = patched_request(fx.SLEEP)
+    result = client.get_sleep_for_cycle(111)
+
+    assert result == fx.SLEEP
+    assert _called_url(mock) == f"{REQUEST_URL}/v2/cycle/111/sleep"
 
 
 def test_get_sleep_by_id_uuid(client: WhoopClient, patched_request):

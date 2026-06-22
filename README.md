@@ -12,11 +12,13 @@ WHOOP API documentation can be found at https://developer.whoop.com/api.
 - [Getting Started](#getting-started)
 - [Migration From Pre-1.0](#migration-from-pre-10)
 - [API Requests](#api-requests)
+  - [Get Activity Mapping](#get-activity-mapping)
   - [Get Profile](#get-profile)
   - [Get Body Measurement](#get-body-measurement)
   - [Get Cycle By ID](#get-cycle-by-id)
   - [Get Cycle Collection](#get-cycle-collection)
   - [Get Recovery For Cycle](#get-recovery-for-cycle)
+  - [Get Sleep For Cycle](#get-sleep-for-cycle)
   - [Get Recovery Collection](#get-recovery-collection)
   - [Get Sleep By ID](#get-sleep-by-id)
   - [Get Sleep Collection](#get-sleep-collection)
@@ -144,11 +146,30 @@ Version 1.0 removes the legacy username/password flow and uses WHOOP's official 
 - Replace `WhoopClient(username, password)` with `WhoopClient(client_id, client_secret, redirect_uri)`.
 - Replace eager constructor authentication and `authenticate()` calls with `authorization_url()` plus `fetch_token(...)`.
 - Persist `client.token` after authorization and pass it back with `WhoopClient(client_id, client_secret, token=saved_token)` for headless use.
+- Use `get_activity_mapping(...)` to look up a v2 UUID for a stored v1 activity ID.
 - Request the default `offline` scope, or include it in custom scopes, if you need refresh-token based auto-refresh.
 
 ## API Requests
 
-There are ten different API requests that `WhoopClient` can make. Full WHOOP API documentation can be found on [WHOOP's website](https://developer.whoop.com/api).
+There are thirteen different API requests that `WhoopClient` can make. Full WHOOP API documentation can be found on [WHOOP's website](https://developer.whoop.com/api).
+
+### Get Activity Mapping
+
+Look up the V2 UUID for a legacy V1 activity ID.
+
+**Method**: `get_activity_mapping(activity_v1_id: int)`
+
+**Payload**:
+
+- `activityV1Id`: Legacy V1 activity ID. Passed into the request path.
+
+**Example Response**:
+
+```python
+{
+    "v2_activity_id": "ecfc6a15-4661-442f-a9a4-f160dd7afae8"
+}
+```
 
 ### Get Profile
 
@@ -280,6 +301,41 @@ Get the recovery for a cycle
         "hrv_rmssd_milli": 31.813562,
         "spo2_percentage": 95.6875,
         "skin_temp_celsius": 33.7
+    }
+}
+```
+
+### Get Sleep For Cycle
+
+Get the sleep associated with the specified cycle ID.
+
+**Method**: `get_sleep_for_cycle(cycle_id: int)`
+
+**Payload**:
+
+- `cycle_id`: ID of the cycle to retrieve sleep for. Passed into the request path.
+
+**Example Response**:
+
+```python
+{
+    "id": "5c060dd1-975d-4544-880c-3def81bdfb0d",
+    "cycle_id": 93845,
+    "user_id": 10129,
+    "created_at": "2022-04-24T11:25:44.774Z",
+    "updated_at": "2022-04-24T14:25:44.774Z",
+    "start": "2022-04-24T02:25:44.774Z",
+    "end": "2022-04-24T10:25:44.774Z",
+    "timezone_offset": "-05:00",
+    "nap": False,
+    "score_state": "SCORED",
+    "score": {
+        "stage_summary": {},
+        "sleep_needed": {},
+        "respiratory_rate": 16.11328125,
+        "sleep_performance_percentage": 98,
+        "sleep_consistency_percentage": 90,
+        "sleep_efficiency_percentage": 91.69533848
     }
 }
 ```
