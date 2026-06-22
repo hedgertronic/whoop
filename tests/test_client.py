@@ -6,7 +6,7 @@ patching `session.request` to return a fake response. Synthetic fixtures only.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -130,11 +130,31 @@ def test_format_dates_explicit(client: WhoopClient):
     assert end == "2026-04-25T00:00:00Z"
 
 
+def test_format_dates_preserves_datetime_inputs(client: WhoopClient):
+    start, end = client._format_dates(
+        "2026-04-24T15:30:00",
+        "2026-04-24T17:45:00",
+    )
+
+    assert start == "2026-04-24T15:30:00Z"
+    assert end == "2026-04-24T17:45:00Z"
+
+
+def test_format_dates_normalizes_aware_datetimes_to_utc(client: WhoopClient):
+    start, end = client._format_dates(
+        "2026-04-24T15:30:00-05:00",
+        "2026-04-24T23:45:00Z",
+    )
+
+    assert start == "2026-04-24T20:30:00Z"
+    assert end == "2026-04-24T23:45:00Z"
+
+
 def test_format_dates_defaults_live(client: WhoopClient):
     # No freezegun dependency: compute the expected window from the same clock
     # the implementation reads (UTC), so the test never goes stale or flakes near
     # midnight in a non-UTC runner.
-    today = datetime.now(timezone.utc).date()
+    today = datetime.now(UTC).date()
     start, end = client._format_dates(None, None)
 
     assert start == f"{(today - timedelta(days=6)).isoformat()}T00:00:00Z"
@@ -153,6 +173,18 @@ def test_collection_passes_explicit_dates_through(client: WhoopClient, patched_r
     params = _called_params(mock)
     assert params["start"] == "2026-04-24T00:00:00Z"
     assert params["end"] == "2026-04-25T00:00:00Z"
+
+
+def test_collection_preserves_explicit_datetimes(client: WhoopClient, patched_request):
+    mock = patched_request(fx.envelope(fx.SLEEP, next_token=None))
+    client.get_sleep_collection(
+        start_date="2026-04-24T15:30:00",
+        end_date="2026-04-24T17:45:00",
+    )
+
+    params = _called_params(mock)
+    assert params["start"] == "2026-04-24T15:30:00Z"
+    assert params["end"] == "2026-04-24T17:45:00Z"
 
 
 # --- _make_request error propagation -----------------------------------------

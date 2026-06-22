@@ -10,7 +10,7 @@ Attributes:
 
 from __future__ import annotations
 
-from datetime import datetime, time, timedelta, timezone
+from datetime import UTC, datetime, time, timedelta
 from typing import Any
 
 from whoop.auth import WhoopAuth
@@ -411,24 +411,44 @@ class WhoopClient(WhoopAuth):
     def _format_dates(
         self, start_date: str | None, end_date: str | None
     ) -> tuple[str, str]:
-        # Inputs are interpreted as UTC calendar days; any time-of-day is ignored.
-        today = datetime.now(timezone.utc).date()
-        start_day = (
-            datetime.fromisoformat(start_date).date()
-            if start_date
-            else today - timedelta(days=6)
+        # Date-only inputs are interpreted as whole UTC calendar days. Datetime
+        # inputs are passed through so callers can request narrower windows.
+        today = datetime.now(UTC).date()
+        start = self._format_collection_bound(
+            start_date,
+            default=datetime.combine(today - timedelta(days=6), time.min),
+            end_bound=False,
         )
-        end_day = datetime.fromisoformat(end_date).date() if end_date else today
+        end = self._format_collection_bound(
+            end_date,
+            default=datetime.combine(today + timedelta(days=1), time.min),
+            end_bound=True,
+        )
 
-        if start_day > end_day:
-            raise ValueError(
-                f"Start date greater than end date: {start_day} > {end_day}"
-            )
-
-        # WHOOP's `start` is inclusive and `end` is exclusive, so the window is the
-        # half-open interval [start 00:00Z, (end + 1 day) 00:00Z): whole UTC days
-        # with no gap or overlap between consecutive queries.
-        start = datetime.combine(start_day, time.min)
-        end = datetime.combine(end_day + timedelta(days=1), time.min)
+        if start >= end:
+            raise ValueError(f"Start date greater than end date: {start} > {end}")
 
         return start.isoformat() + "Z", end.isoformat() + "Z"
+
+    @staticmethod
+    def _format_collection_bound(
+        value: str | None,
+        *,
+        default: datetime,
+        end_bound: bool,
+    ) -> datetime:
+        if value is None:
+            return default
+
+        raw_value = f"{value[:-1]}+00:00" if value.endswith("Z") else value
+        parsed = datetime.fromisoformat(raw_value)
+        if parsed.tzinfo is not None:
+            parsed = parsed.astimezone(UTC).replace(tzinfo=None)
+
+        is_datetime = "T" in value or " " in value
+        if is_datetime:
+            return parsed
+
+        if end_bound:
+            return datetime.combine(parsed.date() + timedelta(days=1), time.min)
+        return datetime.combine(parsed.date(), time.min)
