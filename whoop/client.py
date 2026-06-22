@@ -287,6 +287,43 @@ class WhoopClient(WhoopAuth):
             params={"start": start, "end": end, "limit": 25},
         )
 
+    def get_sleep_stream(
+        self,
+        sleep_id: str,
+        types: list[str] | tuple[str, ...] | None = None,
+    ) -> dict[str, Any]:
+        """Make request to Get Sleep Stream endpoint.
+
+        Get raw signal stream data for the specified sleep ID. Pass
+        ``types=["sleep_classification"]`` to request sleep-stage classification
+        samples; other WHOOP-supported stream types include ``hr``, ``skin_temp``,
+        ``board_temp``, ``battery_temp``, and ``charging_status``.
+
+        Returns:
+            dict[str, Any]: Response JSON data loaded into an object. Example:
+                {
+                    "stream": [
+                        {
+                            "timestamp": "2019-08-24T14:15:22Z",
+                            "hr": 0,
+                            "skin_temp": 0.0,
+                            "board_temp": 0.0,
+                            "battery_temp": 0.0,
+                            "is_sleeping": True,
+                            "is_charging": False
+                        }
+                    ],
+                    "algorithm_version": "string"
+                }
+        """
+        params = {"types": list(types)} if types is not None else None
+
+        return self._make_request(
+            method="GET",
+            url_slug=f"v2/activity/sleep/{sleep_id}/stream",
+            params=params,
+        )
+
     def get_workout_by_id(self, workout_id: str) -> dict[str, Any]:
         """Make request to Get Workout By ID endpoint.
 

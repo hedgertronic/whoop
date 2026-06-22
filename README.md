@@ -20,6 +20,7 @@ WHOOP API documentation can be found at https://developer.whoop.com/api.
   - [Get Recovery Collection](#get-recovery-collection)
   - [Get Sleep By ID](#get-sleep-by-id)
   - [Get Sleep Collection](#get-sleep-collection)
+  - [Get Sleep Stream](#get-sleep-stream)
   - [Get Workout By ID](#get-workout-by-id)
   - [Get Workout Collection](#get-workout-collection)
 - [Usage With DataFrame](#usage-with-dataframe)
@@ -388,6 +389,36 @@ Get all sleeps for a user. Results are sorted by start time in descending order.
     },
     ...
 ]
+```
+
+### Get Sleep Stream
+
+Get raw stream data for the specified sleep ID. Request `types=["sleep_classification"]` to include sleep-stage classification samples when WHOOP returns them.
+
+**Method**: `get_sleep_stream(sleep_id: str, types: list[str] | tuple[str, ...] | None = None)`
+
+**Payload**:
+
+- `sleep`: ID of the sleep to retrieve stream data for. Passed into the request path.
+- `types`: Optional stream types to request. WHOOP documents `hr`, `skin_temp`, `board_temp`, `battery_temp`, `sleep_classification`, and `charging_status`.
+
+**Example Response**:
+
+```python
+{
+    "stream": [
+        {
+            "timestamp": "2019-08-24T14:15:22Z",
+            "hr": 0,
+            "skin_temp": 0.0,
+            "board_temp": 0.0,
+            "battery_temp": 0.0,
+            "is_sleeping": True,
+            "is_charging": False
+        }
+    ],
+    "algorithm_version": "string"
+}
 ```
 
 ### Get Workout By ID

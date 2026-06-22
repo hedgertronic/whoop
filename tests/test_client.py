@@ -66,6 +66,24 @@ def test_get_sleep_by_id_uuid(client: WhoopClient, patched_request):
     assert _called_url(mock) == f"{REQUEST_URL}/v2/activity/sleep/{fx.SLEEP_UUID}"
 
 
+def test_get_sleep_stream(client: WhoopClient, patched_request):
+    mock = patched_request(fx.SLEEP_STREAM)
+    result = client.get_sleep_stream(fx.SLEEP_UUID)
+
+    assert result == fx.SLEEP_STREAM
+    assert _called_url(mock) == (
+        f"{REQUEST_URL}/v2/activity/sleep/{fx.SLEEP_UUID}/stream"
+    )
+    assert _called_params(mock) is None
+
+
+def test_get_sleep_stream_filters_types(client: WhoopClient, patched_request):
+    mock = patched_request(fx.SLEEP_STREAM)
+    client.get_sleep_stream(fx.SLEEP_UUID, types=["sleep_classification", "hr"])
+
+    assert _called_params(mock) == {"types": ["sleep_classification", "hr"]}
+
+
 def test_get_workout_by_id_uuid(client: WhoopClient, patched_request):
     mock = patched_request(fx.WORKOUT)
     result = client.get_workout_by_id(fx.WORKOUT_UUID)

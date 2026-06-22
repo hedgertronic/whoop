@@ -142,6 +142,17 @@ SLEEP = {
     },
 }
 
+SLEEP_STREAM = {
+    "stream": [
+        {
+            "timestamp": "2026-04-24T02:25:44Z",
+            "hr": 55,
+            "is_sleeping": True,
+        }
+    ],
+    "algorithm_version": "v1",
+}
+
 WORKOUT = {
     "id": WORKOUT_UUID,
     "user_id": 12345,

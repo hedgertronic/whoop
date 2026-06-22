@@ -9,6 +9,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 - OAuth2 support for WHOOP's authorization-code flow via `WhoopClient`.
 - Token reuse and refresh persistence through `client.token` and `on_token_refresh`.
+- Sleep stream access via `get_sleep_stream(...)`, including `sleep_classification` requests.
 - `whoop.__version__`.
 - `py.typed` marker -- the package now ships its inline type annotations (PEP 561).
 - GitHub Actions CI across Python 3.12-3.14 (ruff, mypy, pytest with coverage, package build).
