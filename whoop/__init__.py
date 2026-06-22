@@ -1,4 +1,4 @@
-"""Tools for acquiring and analyzing WHOOP API data.
+"""Python client for the WHOOP API v2 with OAuth2 support.
 
 WHOOP is a wearable strap for monitoring sleep, activity, and workouts. Learn more
 about WHOOP at https://www.whoop.com. API docs: https://developer.whoop.com/api.
