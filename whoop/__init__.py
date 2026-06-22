@@ -38,14 +38,22 @@ Examples:
         print(recovery)
 """
 
+from importlib.metadata import PackageNotFoundError, version
+
 from whoop.auth import AUTHORIZE_URL, DEFAULT_SCOPES, TOKEN_URL, WhoopAuth
 from whoop.client import REQUEST_URL, WhoopClient
+
+try:
+    __version__ = version("whoop")
+except PackageNotFoundError:  # pragma: no cover
+    __version__ = "0.0.0"
 
 __all__ = [
     "AUTHORIZE_URL",
     "DEFAULT_SCOPES",
     "REQUEST_URL",
     "TOKEN_URL",
+    "__version__",
     "WhoopAuth",
     "WhoopClient",
 ]
