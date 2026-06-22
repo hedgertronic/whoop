@@ -31,17 +31,24 @@ The `whoop` module can be installed via pip:
 
 ## Getting Started
 
-In order to use the WHOOP client, you must have your WHOOP email and password.
+This client uses WHOOP's official OAuth2 authorization-code flow against the WHOOP v2 API.
+
+### Register an app
+
+Before you can authenticate, you must register an application in the [WHOOP Developer Dashboard](https://developer.whoop.com). Registration gives you a `client_id` and `client_secret`, and lets you register one or more redirect URIs.
+
+The redirect URI must use an `https://` or `whoop://` scheme — plain `http://localhost` is **not** accepted. A value like `https://localhost:8080/whoop/callback` works for local development.
 
 It is best practice to store these values in a `.env` file:
 
 ```bash
-# WHOOP credentials
-USERNAME="<USERNAME>"
-PASSWORD="<PASSWORD>"
+# WHOOP app credentials
+CLIENT_ID="<CLIENT_ID>"
+CLIENT_SECRET="<CLIENT_SECRET>"
+REDIRECT_URI="<REDIRECT_URI>"
 ```
 
-You can use [`python-dotenv`](https://github.com/theskumar/python-dotenv) to load the enviroment variables for use in code:
+You can use [`python-dotenv`](https://github.com/theskumar/python-dotenv) to load the environment variables for use in code:
 
 ```python
 import os
@@ -49,34 +56,84 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-un = os.getenv("USERNAME") or ""
-pw = os.getenv("PASSWORD") or ""
+client_id = os.getenv("CLIENT_ID") or ""
+client_secret = os.getenv("CLIENT_SECRET") or ""
+redirect_uri = os.getenv("REDIRECT_URI") or ""
 ```
 
-Once the environment variables are loaded, a `WhoopClient` object can be created:
+### Authorize a new client
+
+Constructing a `WhoopClient` does not make any network requests. To authorize a brand-new client, build the authorization URL, send the user there to grant access, then exchange the authorization code returned on the redirect:
 
 ```python
 from whoop import WhoopClient
 
-# Using a traditional constructor
-client = WhoopClient(username, password)
-...
+client = WhoopClient(client_id, client_secret, redirect_uri)
 
-# Using a context manager
-with WhoopClient(username, password) as client:
+# Send the user to this URL to grant access. After they consent, WHOOP redirects
+# them to your redirect_uri with an authorization code in the query string.
+url, state = client.authorization_url()
+print(url)
+
+# Exchange the code for a token. Pass either the full redirect URL the user
+# landed on, or the bare code extracted from it.
+client.fetch_token(authorization_response=input("Redirect URL: "))
+# client.fetch_token(code="<authorization code>")
+```
+
+### Reuse a saved token (headless)
+
+The constructor also accepts a previously fetched `token`, which skips the interactive consent flow entirely. The current token is available via the `.token` property:
+
+```python
+saved_token = client.token  # persist this somewhere
+
+# Later, in a headless process:
+client = WhoopClient(client_id, client_secret, token=saved_token)
+```
+
+Tokens auto-refresh as long as you request the `offline` scope (included by default — see [Scopes](#scopes)). To persist rotated tokens, pass an `on_token_refresh` callback that is invoked with the new token whenever a refresh occurs:
+
+```python
+def save_token(token):
+    ...  # write token to disk, a database, etc.
+
+client = WhoopClient(
+    client_id,
+    client_secret,
+    token=saved_token,
+    on_token_refresh=save_token,
+)
+```
+
+You can check whether a client holds a token with `client.is_authenticated()`. The client also works as a context manager, which closes the underlying session on exit:
+
+```python
+with WhoopClient(client_id, client_secret, token=saved_token) as client:
     ...
 ```
 
-The WHOOP client will authenticate the client upon construction by default. This involves fetching an access token from the API. If you don't want this request to happen automatically, pass `authenticate=False` into the object constructor. In order to make other requests, you will need to manually call the `authenticate()` method so that the other requests have the proper authorization headers:
+### Scopes
+
+By default the client requests every read scope plus `offline` (required for token refresh). Pass a custom `scopes` list to narrow the request:
 
 ```python
 client = WhoopClient(
-    client_id, client_secret, refresh_token, authenticate=False
+    client_id, client_secret, redirect_uri, scopes=["read:sleep", "offline"]
 )
-
-client.authenticate()
-...
 ```
+
+The default scopes are:
+
+- `read:profile`
+- `read:body_measurement`
+- `read:cycles`
+- `read:recovery`
+- `read:sleep`
+- `read:workout`
+- `offline`
+
+Note WHOOP's mixed pluralization: `read:cycles` is plural while `read:workout` is singular.
 
 ## API Requests
 
@@ -123,7 +180,7 @@ Get the user's body measurements.
 
 Get the cycle for the specified ID.
 
-**Method**: `get_cycle_by_id(cycle_id: str)`
+**Method**: `get_cycle_by_id(cycle_id: int)`
 
 **Payload**:
 
@@ -154,12 +211,12 @@ Get the cycle for the specified ID.
 
 Get all physiological cycles for a user. Results are sorted by start time in descending order.
 
-**Method**: `get_cycle_collection(start_date: str = None, end_date: str = <today's date>)`
+**Method**: `get_cycle_collection(start_date: str | None = None, end_date: str | None = None)`
 
 **Payload**:
 
-- `startDate`: The earliest date for which to get data, pulled from the `start_date` parameter. Returns cycles that occurred after or during (inclusive) this time. Expected in ISO 8601 format (YYYY-MM-DD HH:MM:SS). Defaults to no start date.
-- `endDate`: The latest date for which to get data, pulled from the `end_date` parameter. Returns cycles that intersect this time or ended before (exclusive) this time. Expected in ISO 8601 format (YYYY-MM-DD HH:MM:SS). Defaults to today's date.
+- `start`: The earliest date for which to get data, derived from the `start_date` parameter. Returns cycles that occurred after or during (inclusive) this time. Expected as a `YYYY-MM-DD` date string. Defaults to six days before today (a trailing seven-day window).
+- `end`: The latest date for which to get data, derived from the `end_date` parameter. Returns cycles that intersect this time or ended before (exclusive) this time. Expected as a `YYYY-MM-DD` date string. Defaults to today's date.
 
 **Example Response**:
 
@@ -189,7 +246,7 @@ Get all physiological cycles for a user. Results are sorted by start time in des
 
 Get the recovery for a cycle
 
-**Method**: `get_recovery_for_cycle(cycle_id: str)`
+**Method**: `get_recovery_for_cycle(cycle_id: int)`
 
 **Payload**:
 
@@ -200,7 +257,7 @@ Get the recovery for a cycle
 ```python
  {
     "cycle_id": 93845,
-    "sleep_id": 10235,
+    "sleep_id": "ee9e6759-2cd8-4317-bc44-0a0bc59a6f1f",
     "user_id": 10129,
     "created_at": "2022-04-24T11:25:44.774Z",
     "updated_at": "2022-04-24T14:25:44.774Z",
@@ -220,12 +277,12 @@ Get the recovery for a cycle
 
 Get all recoveries for a user. Results are sorted by start time of the related sleep in descending order.
 
-**Method**: `get_recovery_collection(start_date: str = None, end_date: str = <today's date>)`
+**Method**: `get_recovery_collection(start_date: str | None = None, end_date: str | None = None)`
 
 **Payload**:
 
-- `startDate`: The earliest date for which to get data, pulled from the `start_date` parameter. Returns cycles that occurred after or during (inclusive) this time. Expected in ISO 8601 format (YYYY-MM-DD HH:MM:SS). Defaults to no start date.
-- `endDate`: The latest date for which to get data, pulled from the `end_date` parameter. Returns cycles that intersect this time or ended before (exclusive) this time. Expected in ISO 8601 format (YYYY-MM-DD HH:MM:SS). Defaults to today's date.
+- `start`: The earliest date for which to get data, derived from the `start_date` parameter. Returns cycles that occurred after or during (inclusive) this time. Expected as a `YYYY-MM-DD` date string. Defaults to six days before today (a trailing seven-day window).
+- `end`: The latest date for which to get data, derived from the `end_date` parameter. Returns cycles that intersect this time or ended before (exclusive) this time. Expected as a `YYYY-MM-DD` date string. Defaults to today's date.
 
 **Example Response**:
 
@@ -233,7 +290,7 @@ Get all recoveries for a user. Results are sorted by start time of the related s
 [
     {
         "cycle_id": 93845,
-        "sleep_id": 10235,
+        "sleep_id": "ee9e6759-2cd8-4317-bc44-0a0bc59a6f1f",
         "user_id": 10129,
         "created_at": "2022-04-24T11:25:44.774Z",
         "updated_at": "2022-04-24T14:25:44.774Z",
@@ -265,7 +322,7 @@ Get the sleep for the specified ID.
 
 ```python
 {
-    "id": 93845,
+    "id": "5c060dd1-975d-4544-880c-3def81bdfb0d",
     "user_id": 10129,
     "created_at": "2022-04-24T11:25:44.774Z",
     "updated_at": "2022-04-24T14:25:44.774Z",
@@ -289,19 +346,19 @@ Get the sleep for the specified ID.
 
 Get all sleeps for a user. Results are sorted by start time in descending order.
 
-**Method**: `get_sleep_collection(start_date: str = None, end_date: str = <today's date>)`
+**Method**: `get_sleep_collection(start_date: str | None = None, end_date: str | None = None)`
 
 **Payload**:
 
-- `startDate`: The earliest date for which to get data, pulled from the `start_date` parameter. Returns sleeps that occurred after or during (inclusive) this time. Expected in ISO 8601 format (YYYY-MM-DD HH:MM:SS). Defaults to no start date.
-- `endDate`: The latest date for which to get data, pulled from the `end_date` parameter. Returns sleeps that intersect this time or ended before (exclusive) this time. Expected in ISO 8601 format (YYYY-MM-DD HH:MM:SS). Defaults to today's date.
+- `start`: The earliest date for which to get data, derived from the `start_date` parameter. Returns sleeps that occurred after or during (inclusive) this time. Expected as a `YYYY-MM-DD` date string. Defaults to six days before today (a trailing seven-day window).
+- `end`: The latest date for which to get data, derived from the `end_date` parameter. Returns sleeps that intersect this time or ended before (exclusive) this time. Expected as a `YYYY-MM-DD` date string. Defaults to today's date.
 
 **Example Response**:
 
 ```python
 [
     {
-        "id": 93845,
+        "id": "5c060dd1-975d-4544-880c-3def81bdfb0d",
         "user_id": 10129,
         "created_at": "2022-04-24T11:25:44.774Z",
         "updated_at": "2022-04-24T14:25:44.774Z",
@@ -337,7 +394,7 @@ Get the workout for the specified ID.
 
 ```python
 {
-    "id": 1043,
+    "id": "ecfc6a15-4661-442f-a9a4-f160dd7afae8",
     "user_id": 9012,
     "created_at": "2022-04-24T11:25:44.774Z",
     "updated_at": "2022-04-24T14:25:44.774Z",
@@ -364,19 +421,19 @@ Get the workout for the specified ID.
 
 Get all workouts for a user. Results are sorted by start time in descending order.
 
-**Method**: `get_workout_collection(start_date: str = None, end_date: str = <today's date>)`
+**Method**: `get_workout_collection(start_date: str | None = None, end_date: str | None = None)`
 
 **Payload**:
 
-- `startDate`: The earliest date for which to get data, pulled from the `start_date` parameter. Returns workouts that occurred after or during (inclusive) this time. Expected in ISO 8601 format (YYYY-MM-DD HH:MM:SS). Defaults to no start date.
-- `endDate`: The latest date for which to get data, pulled from the `end_date` parameter. Returns workouts that intersect this time or ended before (exclusive) this time. Expected in ISO 8601 format (YYYY-MM-DD HH:MM:SS). Defaults to today's date.
+- `start`: The earliest date for which to get data, derived from the `start_date` parameter. Returns workouts that occurred after or during (inclusive) this time. Expected as a `YYYY-MM-DD` date string. Defaults to six days before today (a trailing seven-day window).
+- `end`: The latest date for which to get data, derived from the `end_date` parameter. Returns workouts that intersect this time or ended before (exclusive) this time. Expected as a `YYYY-MM-DD` date string. Defaults to today's date.
 
 **Example Response**:
 
 ```python
 [
     {
-        "id": 1043,
+        "id": "ecfc6a15-4661-442f-a9a4-f160dd7afae8",
         "user_id": 9012,
         "created_at": "2022-04-24T11:25:44.774Z",
         "updated_at": "2022-04-24T14:25:44.774Z",
@@ -411,15 +468,15 @@ Using WHOOP API data with a Pandas DataFrame is very straightforward:
 >>> sleep = client.get_sleep_collection("2022-05-01", "2022-05-07")
 >>> pd.json_normalize(sleep)
 
-          id  user_id                created_at                updated_at  \
-0  430878903   995945  2022-05-07T14:56:28.389Z  2022-05-07T15:12:22.933Z
-1  430378149   995945  2022-05-06T18:11:27.029Z  2022-05-06T18:11:29.172Z
-2  429704502   995945  2022-05-05T14:31:14.954Z  2022-05-05T14:43:15.744Z
-3  429055399   995945  2022-05-04T13:35:13.911Z  2022-05-04T13:35:15.758Z
-4  428375477   995945  2022-05-03T12:26:02.170Z  2022-05-03T12:26:04.151Z
-5  427873268   995945  2022-05-02T15:55:10.734Z  2022-05-02T15:55:13.140Z
-6  427300091   995945  2022-05-01T17:06:54.808Z  2022-05-01T17:06:57.067Z
-7  427069852   995945  2022-05-01T11:26:47.991Z  2022-05-01T11:26:49.684Z
+                                     id  user_id                created_at                updated_at  \
+0  0e8c8c6e-1a2b-4c3d-8e4f-1a2b3c4d5e6f   995945  2022-05-07T14:56:28.389Z  2022-05-07T15:12:22.933Z
+1  1f9d9d7f-2b3c-4d4e-9f5a-2b3c4d5e6f70   995945  2022-05-06T18:11:27.029Z  2022-05-06T18:11:29.172Z
+2  2a0e0e80-3c4d-4e5f-a06b-3c4d5e6f7081   995945  2022-05-05T14:31:14.954Z  2022-05-05T14:43:15.744Z
+3  3b1f1f91-4d5e-4f60-b17c-4d5e6f708192   995945  2022-05-04T13:35:13.911Z  2022-05-04T13:35:15.758Z
+4  4c2a20a2-5e6f-4071-c28d-5e6f708192a3   995945  2022-05-03T12:26:02.170Z  2022-05-03T12:26:04.151Z
+5  5d3b31b3-6f70-4182-d39e-6f708192a3b4   995945  2022-05-02T15:55:10.734Z  2022-05-02T15:55:13.140Z
+6  6e4c42c4-7081-4293-e4af-708192a3b4c5   995945  2022-05-01T17:06:54.808Z  2022-05-01T17:06:57.067Z
+7  7f5d53d5-8192-43a4-f5b0-8192a3b4c5d6   995945  2022-05-01T11:26:47.991Z  2022-05-01T11:26:49.684Z
 
                       start                       end timezone_offset    nap  \
 0  2022-05-07T04:46:52.867Z  2022-05-07T14:40:57.427Z          -04:00  False
