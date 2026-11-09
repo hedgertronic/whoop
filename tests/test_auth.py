@@ -6,7 +6,11 @@ is exercised by patching the session's `fetch_token`.
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock
 from urllib.parse import parse_qs, urlparse
+
+import pytest
+from authlib.oauth2.rfc6749 import MismatchingStateException
 
 from whoop import (
     AUTHORIZE_URL,
@@ -18,6 +22,161 @@ from whoop import (
 )
 
 from .conftest import CLIENT_ID, REDIRECT_URI, SYNTHETIC_TOKEN
+
+
+@pytest.fixture
+def token_transport(unauth_client):
+    response = MagicMock(status_code=200)
+    response.json.return_value = dict(SYNTHETIC_TOKEN)
+    unauth_client.session.send = MagicMock(return_value=response)
+    return unauth_client.session.send
+
+
+@pytest.mark.parametrize("state_kwargs", [{}, {"state": "custom-state"}])
+def test_authorization_callback_matches_state(
+    unauth_client, token_transport, state_kwargs
+):
+    _, state = unauth_client.authorization_url(**state_kwargs)
+    result = unauth_client.fetch_token(
+        authorization_response=f"{REDIRECT_URI}?code=abc&state={state}"
+    )
+
+    assert result == SYNTHETIC_TOKEN
+    assert unauth_client.token == result
+    assert unauth_client.is_authenticated()
+    token_transport.assert_called_once()
+
+
+@pytest.mark.parametrize("callback_query", ["code=abc", "code=abc&state=wrong"])
+def test_authorization_callback_rejects_invalid_state_before_transport(
+    unauth_client, token_transport, callback_query
+):
+    unauth_client.authorization_url()
+
+    with pytest.raises(MismatchingStateException):
+        unauth_client.fetch_token(
+            authorization_response=f"{REDIRECT_URI}?{callback_query}"
+        )
+
+    token_transport.assert_not_called()
+    assert unauth_client.token is None
+
+
+def test_new_authorization_attempt_replaces_pending_state(
+    unauth_client, token_transport
+):
+    _, old_state = unauth_client.authorization_url()
+    _, new_state = unauth_client.authorization_url()
+
+    with pytest.raises(MismatchingStateException):
+        unauth_client.fetch_token(
+            authorization_response=f"{REDIRECT_URI}?code=abc&state={old_state}"
+        )
+
+    token_transport.assert_not_called()
+    unauth_client.fetch_token(
+        authorization_response=f"{REDIRECT_URI}?code=abc&state={new_state}"
+    )
+    assert unauth_client.is_authenticated()
+
+
+def test_callback_can_use_explicit_state_from_another_process(
+    unauth_client, token_transport
+):
+    unauth_client.fetch_token(
+        authorization_response=f"{REDIRECT_URI}?code=abc&state=saved-state",
+        state="saved-state",
+    )
+    assert unauth_client.is_authenticated()
+
+
+def test_bare_code_exchange_after_authorization_url(unauth_client, token_transport):
+    unauth_client.authorization_url()
+    unauth_client.fetch_token(code="bare-code")
+    assert unauth_client.is_authenticated()
+
+
+def test_revoke_access_clears_local_credentials_only_after_success(client):
+    client.user_id = "user-42"
+    client.session.delete = MagicMock(return_value=MagicMock())
+
+    client.revoke_access()
+
+    assert client.token is None
+    assert client.is_authenticated() is False
+    assert client.user_id == ""
+    assert str(client) == "WhoopClient(unauthenticated)"
+
+
+def test_failed_revocation_preserves_local_credentials(client):
+    client.user_id = "user-42"
+    response = MagicMock()
+    response.raise_for_status.side_effect = RuntimeError("HTTP 503")
+    client.session.delete = MagicMock(return_value=response)
+
+    with pytest.raises(RuntimeError, match="HTTP 503"):
+        client.revoke_access()
+
+    assert client.token == SYNTHETIC_TOKEN
+    assert client.is_authenticated()
+    assert client.user_id == "user-42"
+
+
+def test_unauthenticated_request_fails_before_transport(unauth_client, token_transport):
+    from authlib.integrations.base_client import MissingTokenError
+
+    with pytest.raises(MissingTokenError):
+        unauth_client.get_profile()
+
+    token_transport.assert_not_called()
+
+
+@pytest.mark.parametrize("has_refresh_token", [False, True])
+def test_expired_token_failure_prevents_data_request(
+    unauth_client, token_transport, has_refresh_token
+):
+    from authlib.integrations.base_client import InvalidTokenError, OAuthError
+
+    expired_token = {**SYNTHETIC_TOKEN, "expires_at": 1000000000}
+    if not has_refresh_token:
+        expired_token.pop("refresh_token")
+    unauth_client.session.token = expired_token
+    token_transport.return_value.json.return_value = {"error": "invalid_grant"}
+
+    with pytest.raises(OAuthError if has_refresh_token else InvalidTokenError):
+        unauth_client.get_profile()
+
+    assert unauth_client.token == expired_token
+    assert unauth_client.is_authenticated()
+    assert token_transport.call_count == int(has_refresh_token)
+    if has_refresh_token:
+        assert token_transport.call_args.args[0].url == TOKEN_URL
+
+
+def test_refresh_persistence_failure_keeps_rotated_token_in_memory(
+    unauth_client, token_transport
+):
+    unauth_client.session.token = {**SYNTHETIC_TOKEN, "expires_at": 1000000000}
+    unauth_client._on_token_refresh = MagicMock(
+        side_effect=OSError("storage unavailable")
+    )
+
+    with pytest.raises(OSError, match="storage unavailable"):
+        unauth_client.get_profile()
+
+    assert unauth_client.token == SYNTHETIC_TOKEN
+    unauth_client._on_token_refresh.assert_called_once_with(unauth_client.token)
+    token_transport.assert_called_once()
+    assert token_transport.call_args.args[0].url == TOKEN_URL
+
+
+def test_context_manager_closes_session_on_exception(unauth_client):
+    unauth_client.session.close = MagicMock()
+
+    with pytest.raises(RuntimeError, match="request failed"), unauth_client:
+        raise RuntimeError("request failed")
+
+    unauth_client.session.close.assert_called_once_with()
 
 
 def test_exports_are_wired():

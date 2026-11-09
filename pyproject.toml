@@ -1,6 +1,6 @@
 [project]
 name = "whoop"
-version = "1.0.1"
+version = "1.0.2"
 description = "Python client for the WHOOP API v2 with OAuth2 support."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -35,7 +35,6 @@ dev = [
     "ruff>=0.6",
     "mypy>=1.11",
     "pytest>=8.0",
-    "pytest-recording>=0.13",
     "types-requests>=2.28",
     "pre-commit>=3.8",
     "coverage[toml]>=7.6",
@@ -71,7 +70,7 @@ select = [
     "C90",
 ]
 # TRY003: ruff nudges toward custom exception classes to hold messages; we
-# prefer raising stdlib exceptions with inline messages (never enforced before).
+# prefer raising stdlib exceptions with inline messages.
 ignore = ["D212", "TRY003"]
 
 [tool.ruff.lint.pydocstyle]

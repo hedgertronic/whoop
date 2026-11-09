@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2]
+
+### Fixed
+- `authorization_url()` now keeps the generated `state` on the session, so `fetch_token(authorization_response=...)` rejects a callback whose state doesn't match.
+- `revoke_access()` clears the local token and user ID after WHOOP confirms revocation.
+- Collection methods raise `RuntimeError` if WHOOP repeats a pagination cursor instead of looping forever, and no longer mutate the caller's `params`.
+
 ## [1.0.1]
 
 ### Changed

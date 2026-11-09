@@ -153,6 +153,82 @@ def test_collection_follows_next_token(client: WhoopClient, patched_request):
     assert second_params["nextToken"] == "TOKEN"
 
 
+@pytest.mark.parametrize(
+    "method_name",
+    [
+        "get_cycle_collection",
+        "get_recovery_collection",
+        "get_sleep_collection",
+        "get_workout_collection",
+    ],
+)
+@pytest.mark.parametrize("cursors", [("A", "A"), ("A", "B", "A")])
+def test_collection_rejects_cursor_cycles(
+    client, patched_request, method_name, cursors
+):
+    mock = patched_request(*(fx.envelope(fx.CYCLE, cursor) for cursor in cursors))
+
+    with pytest.raises(RuntimeError, match="Pagination cursor repeated"):
+        getattr(client, method_name)()
+
+    assert mock.call_count == len(cursors)
+
+
+def test_pagination_preserves_caller_params_and_request_history(
+    client, patched_request
+):
+    params = {"limit": 25, "nextToken": "initial"}
+    mock = patched_request(
+        fx.envelope(fx.CYCLE, "A"),
+        {"records": [], "next_token": "B"},
+        {"records": [], "next_token": None},
+    )
+
+    assert client._make_paginated_request("GET", "v2/cycle", params=params) == [
+        fx.CYCLE
+    ]
+    assert params == {"limit": 25, "nextToken": "initial"}
+    assert [call.kwargs["params"]["nextToken"] for call in mock.call_args_list] == [
+        "initial",
+        "A",
+        "B",
+    ]
+
+
+def test_pagination_rejects_repeated_initial_cursor(client, patched_request):
+    mock = patched_request(fx.envelope(fx.CYCLE, "initial"))
+
+    with pytest.raises(RuntimeError, match="Pagination cursor repeated"):
+        client._make_paginated_request(
+            "GET", "v2/cycle", params={"nextToken": "initial"}
+        )
+
+    assert mock.call_count == 1
+
+
+@pytest.mark.parametrize("terminal_cursor", [None, ""])
+def test_empty_collection_completes(client, patched_request, terminal_cursor):
+    mock = patched_request({"records": [], "next_token": terminal_cursor})
+    assert client.get_cycle_collection() == []
+    assert mock.call_count == 1
+
+
+def test_pagination_propagates_later_page_failure(client):
+    from unittest.mock import MagicMock
+
+    from .conftest import FakeResponse
+
+    failure = RuntimeError("HTTP 503")
+    client.session.request = MagicMock(
+        side_effect=[FakeResponse(fx.envelope(fx.CYCLE, "A")), failure]
+    )
+
+    with pytest.raises(RuntimeError, match="HTTP 503"):
+        client.get_cycle_collection()
+
+    assert client.session.request.call_count == 2
+
+
 # --- _format_dates -----------------------------------------------------------
 
 
