@@ -451,8 +451,16 @@ class WhoopClient(WhoopAuth):
     def _make_paginated_request(
         self, method: str, url_slug: str, **kwargs: Any
     ) -> list[dict[str, Any]]:
-        params = kwargs.pop("params", {})
+        """Collect pages until exhaustion, rejecting repeated cursors.
+
+        Raises:
+            RuntimeError: If pagination revisits a cursor, preventing completion.
+        """
+        params = dict(kwargs.pop("params", {}))
         response_data: list[dict[str, Any]] = []
+        seen_tokens: set[str] = set()
+        if initial_token := params.get("nextToken"):
+            seen_tokens.add(initial_token)
 
         while True:
             response = self._make_request(
@@ -465,7 +473,10 @@ class WhoopClient(WhoopAuth):
             response_data += response["records"]
 
             if next_token := response["next_token"]:
-                params["nextToken"] = next_token
+                if next_token in seen_tokens:
+                    raise RuntimeError("Pagination cursor repeated; cannot advance.")
+                seen_tokens.add(next_token)
+                params = {**params, "nextToken": next_token}
 
             else:
                 break

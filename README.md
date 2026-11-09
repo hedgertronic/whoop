@@ -85,6 +85,13 @@ client.fetch_token(authorization_response=input("Redirect URL: "))
 # client.fetch_token(code="<authorization code>")
 ```
 
+The client retains the latest authorization state and Authlib validates it when
+you pass the full redirect URL. Use a separate client for each concurrent consent
+flow. If the callback is handled in another process, persist the returned state
+with that user's authorization attempt and pass the expected value as
+`fetch_token(authorization_response=redirect_url, state=saved_state)`. When passing
+a bare code, validate the callback state yourself before exchanging it.
+
 ### Reuse a saved token (headless)
 
 The constructor also accepts a previously fetched `token`, which skips the interactive consent flow entirely. The current token is available via the `.token` property:
@@ -116,6 +123,17 @@ You can check whether a client holds a token with `client.is_authenticated()`. T
 with WhoopClient(client_id, client_secret, token=saved_token) as client:
     ...
 ```
+
+`is_authenticated()` reports token presence, including expired tokens; it does
+not guarantee that a request will succeed. Refresh and token-persistence callback
+errors propagate to the caller. Authlib installs a refreshed token in memory
+before invoking `on_token_refresh`, so a persistence error does not roll back the
+live token. Handle that error and save `client.token` before discarding the client.
+
+`client.revoke_access()` clears the local token and user ID after WHOOP confirms
+revocation. A failed revocation preserves local credentials. Remove any saved
+token from your own storage after successful revocation; the refresh callback is
+not a revocation notification.
 
 ### Scopes
 
@@ -152,6 +170,11 @@ Version 1.0 removes the legacy username/password flow and uses WHOOP's official 
 ## API Requests
 
 There are thirteen different API requests that `WhoopClient` can make. Full WHOOP API documentation can be found on [WHOOP's website](https://developer.whoop.com/api).
+
+Collection methods follow pagination until WHOOP returns no next cursor, including
+across empty pages. If WHOOP repeats a cursor, they raise `RuntimeError` instead
+of looping indefinitely or returning partial results. HTTP errors also propagate
+without returning partial collections.
 
 ### Get Activity Mapping
 
