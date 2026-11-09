@@ -108,9 +108,13 @@ class WhoopAuth:
 
         After a successful request, the current access token can no longer access
         WHOOP data and webhook delivery stops for the associated OAuth client.
+        The local token and user ID are cleared only after the request succeeds.
+        Callers must also remove any externally persisted copy of the token.
         """
         response = self.session.delete(REVOKE_URL)
         response.raise_for_status()
+        self.session.token = None
+        self.user_id = ""
 
     def authorization_url(self, **kwargs: Any) -> tuple[str, str]:
         """Build the URL a user visits to authorize the app.
@@ -118,6 +122,8 @@ class WhoopAuth:
         Send the user to the returned URL. After they consent, WHOOP redirects them
         to the registered `redirect_uri` with an authorization code in the query
         string. Pass that redirect URL (or the bare code) to `fetch_token()`.
+        The session retains the latest state so Authlib can validate redirect URLs.
+        Use a separate client for each concurrent authorization flow.
 
         Args:
             kwargs (dict[str, Any], optional): Extra parameters for the authorization
@@ -127,6 +133,7 @@ class WhoopAuth:
             tuple[str, str]: The authorization URL and the `state` used to build it.
         """
         url, state = self.session.create_authorization_url(AUTHORIZE_URL, **kwargs)
+        self.session.state = state
         return url, state
 
     def fetch_token(
@@ -139,6 +146,9 @@ class WhoopAuth:
 
         Provide either the full `authorization_response` URL the user was redirected
         to, or the bare `code` extracted from it.
+        Redirect URLs are checked against the latest `authorization_url()` state.
+        When exchanging in another process, pass the saved expected `state` in kwargs.
+        With a bare code, the caller is responsible for validating callback state.
 
         Args:
             authorization_response (str | None): The full redirect URL containing the
